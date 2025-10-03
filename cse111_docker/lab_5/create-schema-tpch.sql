@@ -390,3 +390,208 @@ WHERE rn = 1
 ORDER BY region_name;
 
 
+SELECT 
+    n.n_name AS nation_name,
+    COUNT(DISTINCT c.c_custkey) AS customer_count,
+    COUNT(DISTINCT s.s_suppkey) AS supplier_count
+FROM nation n
+JOIN region r ON n.n_regionkey = r.r_regionkey
+LEFT JOIN customer c ON n.n_nationkey = c.c_nationkey
+LEFT JOIN supplier s ON n.n_nationkey = s.s_nationkey
+WHERE r.r_name = 'AMERICA'
+GROUP BY n.n_nationkey, n.n_name
+ORDER BY n.n_name;
+
+SELECT
+    o.o_orderpriority AS order_priority,
+    COUNT(*) AS line_item_count
+FROM lineitem l
+JOIN orders o ON l.l_orderkey = o.o_orderkey
+WHERE l_receiptdate < l_commitdate AND o.o_orderdate LIKE '1995%' 
+GROUP BY o.o_orderpriority
+ORDER BY o.o_orderpriority;
+
+SELECT 
+    r.r_name AS region_name,
+    COUNT(DISTINCT c.c_custkey) AS customer_count
+FROM customer c
+JOIN nation n ON c.c_nationkey = n.n_nationkey
+JOIN region r ON n.n_regionkey = r.r_regionkey
+JOIN orders o ON c.c_custkey = o.o_custkey
+WHERE c.c_acctbal > (SELECT AVG(c_acctbal) FROM customer)
+GROUP BY r.r_regionkey, r.r_name
+ORDER BY r.r_name;
+
+SELECT 
+    COUNT(DISTINCT s.s_suppkey) AS supplier_count
+FROM supplier s
+JOIN partsupp ps ON s.s_suppkey = ps.ps_suppkey
+JOIN part p ON ps.ps_partkey = p.p_partkey
+WHERE p.p_type LIKE '%POLISHED%' 
+    AND p.p_size IN (10, 20, 30, 40);
+
+SELECT 
+    (l.l_extendedprice * (1 - l.l_discount)) AS highest_value_line_item,
+    p.p_name AS part_name
+FROM lineitem l
+JOIN part p ON l.l_partkey = p.p_partkey
+WHERE l.l_shipdate > '1993-10-02'
+    AND (l.l_extendedprice * (1 - l.l_discount)) = (
+        SELECT MAX(l2.l_extendedprice * (1 - l2.l_discount))
+        FROM lineitem l2
+        WHERE l2.l_shipdate > '1993-10-02'
+    )
+ORDER BY p.p_name;
+
+SELECT 
+    s.s_name AS supplier_name,
+    p.p_size AS part_size,
+    ps.ps_supplycost AS max_supply_cost
+FROM part p
+JOIN partsupp ps ON p.p_partkey = ps.ps_partkey
+JOIN supplier s ON ps.ps_suppkey = s.s_suppkey
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+JOIN region r ON n.n_regionkey = r.r_regionkey
+WHERE p.p_type LIKE '%STEEL%' 
+    AND r.r_name = 'AMERICA'
+    AND ps.ps_supplycost = (
+        SELECT MAX(ps2.ps_supplycost)
+        FROM part p2
+        JOIN partsupp ps2 ON p2.p_partkey = ps2.ps_partkey
+        JOIN supplier s2 ON ps2.ps_suppkey = s2.s_suppkey
+        JOIN nation n2 ON s2.s_nationkey = n2.n_nationkey
+        JOIN region r2 ON n2.n_regionkey = r2.r_regionkey
+        WHERE p2.p_type LIKE '%STEEL%' 
+            AND r2.r_name = 'AMERICA'
+            AND p2.p_size = p.p_size
+    )
+ORDER BY p.p_type, s.s_name;
+
+SELECT DISTINCT p.p_name AS part_name
+FROM part p
+JOIN partsupp ps ON p.p_partkey = ps.ps_partkey
+JOIN supplier s ON ps.ps_suppkey = s.s_suppkey
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+WHERE n.n_name = 'FRANCE'
+    AND (ps.ps_supplycost * ps.ps_availqty) >= (
+        SELECT MIN(total_value)
+        FROM (
+            SELECT (ps2.ps_supplycost * ps2.ps_availqty) AS total_value
+            FROM partsupp ps2
+            ORDER BY total_value DESC
+            LIMIT (SELECT CAST(COUNT(*) * 0.05 AS INTEGER) FROM partsupp)
+        ) top_5_percent
+    )
+ORDER BY p.p_name;
+
+SELECT p.p_mfgr AS manufacturer_name
+FROM supplier s 
+JOIN partsupp ps ON s.s_suppkey = ps.ps_suppkey
+JOIN part p ON ps.ps_partkey = p.p_partkey
+WHERE s.s_name = 'Supplier#000000040'
+    AND ps.ps_availqty = (
+        SELECT MIN(ps2.ps_availqty) 
+        FROM supplier s2
+        JOIN partsupp ps2 ON s2.s_suppkey = ps2.ps_suppkey
+        WHERE s2.s_name = 'Supplier#000000040'        
+    );
+
+SELECT 
+    r.r_name AS region_name,
+    COUNT(*) AS supplier_above_region_avg
+FROM supplier s
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+JOIN region r ON n.n_regionkey = r.r_regionkey
+WHERE s.s_acctbal > (
+    SELECT AVG(s2.s_acctbal) 
+    FROM supplier s2
+    JOIN nation n2 ON s2.s_nationkey = n2.n_nationkey
+    WHERE n2.n_regionkey = r.r_regionkey
+)
+GROUP BY r.r_regionkey, r.r_name
+ORDER BY r.r_name;
+
+SELECT 
+    COUNT (*) AS customer_not_from_europe_or_asia
+FROM customer c
+JOIN nation n ON c.c_nationkey = n.n_nationkey
+JOIN region r ON n.n_regionkey = r.r_regionkey
+WHERE r.r_name NOT IN ('EUROPE', 'ASIA');
+
+SELECT SUM(ps.ps_supplycost) AS total_supply_cost
+FROM part p
+JOIN partsupp ps ON p.p_partkey = ps.ps_partkey
+JOIN supplier s ON ps.ps_suppkey = s.s_suppkey
+JOIN lineitem l ON p.p_partkey = l.l_partkey AND ps.ps_suppkey = l.l_suppkey
+WHERE p.p_retailprice < 2000 
+    AND l.l_shipdate LIKE '1994%'
+    AND s.s_suppkey NOT IN (
+        SELECT DISTINCT l2.l_suppkey
+        FROM lineitem l2
+        WHERE l2.l_extendedprice < 1000
+            AND l2.l_shipdate LIKE '1997%'
+);
+
+SELECT 
+    o.o_orderpriority AS order_priority,
+    COUNT(DISTINCT o.o_orderkey) AS orders_with_late_receipt
+FROM orders o
+WHERE o.o_orderdate LIKE '1995%'
+    AND EXISTS (
+        SELECT 1
+        FROM lineitem l
+        WHERE l.l_orderkey = o.o_orderkey
+            AND l.l_receiptdate > l.l_commitdate
+    )
+GROUP BY o.o_orderpriority
+ORDER BY o.o_orderpriority;
+
+SELECT 
+    sr.r_name AS supplier_region,
+    cr.r_name AS customer_region,
+    strftime('%Y', l.l_shipdate) AS year,
+    SUM(l.l_extendedprice * (1 - l.l_discount)) AS revenue
+FROM lineitem l
+JOIN supplier s ON l.l_suppkey = s.s_suppkey
+JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+JOIN region sr ON sn.n_regionkey = sr.r_regionkey
+JOIN orders o ON l.l_orderkey = o.o_orderkey
+JOIN customer c ON o.o_custkey = c.c_custkey
+JOIN nation cn ON c.c_nationkey = cn.n_nationkey
+JOIN region cr ON cn.n_regionkey = cr.r_regionkey
+WHERE strftime('%Y', l.l_shipdate) IN ('1994', '1995')
+    AND sr.r_regionkey != cr.r_regionkey
+GROUP BY sr.r_regionkey, sr.r_name, cr.r_regionkey, cr.r_name, strftime('%Y', l.l_shipdate)
+ORDER BY supplier_region, customer_region, year;
+
+SELECT 
+    ROUND(
+        (france_revenue * 100.0 / total_america_revenue), 4
+    ) AS france_market_share_percentage
+FROM (
+    SELECT 
+        SUM(CASE 
+            WHEN sn.n_name = 'FRANCE' 
+            THEN l.l_extendedprice * (1 - l.l_discount) 
+            ELSE 0 
+        END) AS france_revenue,
+        SUM(l.l_extendedprice * (1 - l.l_discount)) AS total_america_revenue
+    FROM lineitem l
+    JOIN supplier s ON l.l_suppkey = s.s_suppkey
+    JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+    JOIN orders o ON l.l_orderkey = o.o_orderkey
+    JOIN customer c ON o.o_custkey = c.c_custkey
+    JOIN nation cn ON c.c_nationkey = cn.n_nationkey
+    JOIN region cr ON cn.n_regionkey = cr.r_regionkey
+    WHERE cr.r_name = 'AMERICA'
+        AND strftime('%Y', l.l_shipdate) = '1994'
+) market_data;
+
+SELECT MAX(l.l_discount) AS largest_discount_below_average
+FROM lineitem l
+JOIN orders o ON l.l_orderkey = o.o_orderkey
+WHERE o.o_orderdate LIKE '1994-10%'
+    AND l.l_discount < (
+        SELECT AVG(l2.l_discount)
+        FROM lineitem l2
+    );
