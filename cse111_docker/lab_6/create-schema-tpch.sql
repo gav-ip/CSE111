@@ -595,3 +595,247 @@ WHERE o.o_orderdate LIKE '1994-10%'
         SELECT AVG(l2.l_discount)
         FROM lineitem l2
     );
+
+SELECT 
+    o.o_totalprice AS total_price,
+    s.s_name AS supplier_name,
+    c.c_name AS customer_name
+FROM orders o
+JOIN lineitem l ON o.o_orderkey = l.l_orderkey
+JOIN supplier s ON l.l_suppkey = s.s_suppkey
+JOIN customer c ON o.o_custkey = c.c_custkey
+WHERE o.o_orderstatus = 'F'
+    AND o.o_totalprice = (
+        SELECT MAX (o2.o_totalprice)
+        FROM orders o2
+        WHERE o2.o_orderstatus = 'F'
+    );
+
+SELECT 
+    COUNT(DISTINCT c.c_custkey) AS customer_count
+FROM customer c
+JOIN orders o ON c.c_custkey = o.o_custkey
+JOIN supplier s ON o.o_orderkey = o.o_orderkey
+JOIN region r ON s.s_nationkey = r.r_regionkey
+WHERE NOT EXISTS (
+    SELECT 1 
+    FROM lineitem l 
+    JOIN supplier s ON l.l_suppkey = s.s_suppkey
+    JOIN nation n ON s.s_nationkey = n.n_nationkey
+    JOIN region r ON n.n_regionkey = r.r_regionkey
+    WHERE r.r_name != 'AFRICA'
+        AND l.l_orderkey = o.o_orderkey
+)
+AND EXISTS (
+    SELECT 1 
+    FROM lineitem l2
+    WHERE l2.l_orderkey = o.o_orderkey
+);
+
+SELECT DISTINCT p.p_name AS part_name
+FROM part p
+WHERE p.p_partkey IN (
+    -- Parts ordered by customers from ASIA
+    SELECT DISTINCT l.l_partkey
+    FROM lineitem l
+    JOIN orders o ON l.l_orderkey = o.o_orderkey
+    JOIN customer c ON o.o_custkey = c.c_custkey
+    JOIN nation cn ON c.c_nationkey = cn.n_nationkey
+    JOIN region cr ON cn.n_regionkey = cr.r_regionkey
+    WHERE cr.r_name = 'ASIA'
+)
+AND p.p_partkey IN (
+    -- Parts supplied by exactly 3 suppliers from AFRICA
+    SELECT ps.ps_partkey
+    FROM partsupp ps
+    JOIN supplier s ON ps.ps_suppkey = s.s_suppkey
+    JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+    JOIN region sr ON sn.n_regionkey = sr.r_regionkey
+    WHERE sr.r_name = 'AFRICA'
+    GROUP BY ps.ps_partkey
+    HAVING COUNT(DISTINCT s.s_suppkey) = 3
+);
+
+SELECT 
+    n.n_name AS nation_name,
+    SUM(l.l_extendedprice) AS total_extended_price
+FROM lineitem l
+JOIN supplier s ON l.l_suppkey = s.s_suppkey
+JOIN nation n ON s.s_nationkey = n.n_nationkey
+WHERE strftime('%Y', l.l_shipdate) = '1994'
+GROUP BY n.n_nationkey, n.n_name
+HAVING SUM(l.l_extendedprice) = (
+    SELECT MIN(nation_total)
+    FROM (
+        SELECT SUM(l2.l_extendedprice) AS nation_total
+        FROM lineitem l2
+        JOIN supplier s2 ON l2.l_suppkey = s2.s_suppkey
+        JOIN nation n2 ON s2.s_nationkey = n2.n_nationkey
+        WHERE strftime('%Y', l2.l_shipdate) = '1994'
+        GROUP BY n2.n_nationkey
+    ) nation_totals
+);
+
+SELECT COUNT(*) AS customers_with_at_most_three_orders
+FROM (
+    SELECT c.c_custkey
+    FROM customer c
+    JOIN orders o ON c.c_custkey = o.o_custkey
+    WHERE o.o_orderdate LIKE '1995-11%'
+    GROUP BY c.c_custkey
+    HAVING COUNT(DISTINCT o.o_orderkey) <= 3
+) customer_counts;
+
+SELECT COUNT(*) AS peru_suppliers_with_more_than_40_parts
+FROM (
+    SELECT s.s_suppkey
+    FROM supplier s
+    JOIN nation n ON s.s_nationkey = n.n_nationkey
+    JOIN partsupp ps ON s.s_suppkey = ps.ps_suppkey
+    WHERE n.n_name = 'PERU'
+    GROUP BY s.s_suppkey
+    HAVING COUNT(DISTINCT ps.ps_partkey) > 40
+) supplier_counts;
+
+SELECT 
+    strftime('%Y-%m', l.l_shipdate) AS month,
+    SUM(l.l_quantity) AS total_quantity
+FROM lineitem l
+WHERE strftime('%Y', l.l_shipdate) = '1997'
+GROUP BY strftime('%Y-%m', l.l_shipdate)
+ORDER BY month;
+
+SELECT COUNT(*) AS suppliers_with_less_than_50_orders
+FROM (
+    SELECT s.s_suppkey
+    FROM lineitem l
+    JOIN supplier s ON l.l_suppkey = s.s_suppkey
+    JOIN orders o ON l.l_orderkey = o.o_orderkey
+    JOIN customer c ON o.o_custkey = c.c_custkey
+    JOIN nation n ON c.c_nationkey = n.n_nationkey
+    WHERE n.n_name IN ('EGYPT', 'JORDAN')
+    GROUP BY s.s_suppkey
+    HAVING COUNT(DISTINCT o.o_orderkey) < 50
+) supplier_counts;
+
+SELECT COUNT(DISTINCT ps.ps_suppkey) AS supplier_count
+FROM part p
+JOIN partsupp ps ON p.p_partkey = ps.ps_partkey
+WHERE p.p_retailprice = (
+    SELECT MIN(p2.p_retailprice)
+    FROM part p2
+);
+
+SELECT 
+    n.n_name AS nation_name,
+    SUM(o.o_totalprice) AS total_spending
+FROM customer c
+JOIN nation n ON c.c_nationkey = n.n_nationkey
+JOIN orders o ON c.c_custkey = o.o_custkey
+GROUP BY n.n_nationkey, n.n_name
+HAVING SUM(o.o_totalprice) = (
+    SELECT MAX(nation_spending)
+    FROM (
+        SELECT SUM(o2.o_totalprice) AS nation_spending
+        FROM customer c2
+        JOIN nation n2 ON c2.c_nationkey = n2.n_nationkey
+        JOIN orders o2 ON c2.c_custkey = o2.o_custkey
+        GROUP BY n2.n_nationkey
+    ) nation_totals
+);
+
+SELECT 
+    cr.r_name AS region_name,
+    SUM(l.l_extendedprice) AS total_spending
+FROM lineitem l
+JOIN supplier s ON l.l_suppkey = s.s_suppkey
+JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+JOIN region sr ON sn.n_regionkey = sr.r_regionkey
+JOIN orders o ON l.l_orderkey = o.o_orderkey
+JOIN customer c ON o.o_custkey = c.c_custkey
+JOIN nation cn ON c.c_nationkey = cn.n_nationkey
+JOIN region cr ON cn.n_regionkey = cr.r_regionkey
+WHERE sr.r_regionkey = cr.r_regionkey
+GROUP BY cr.r_regionkey, cr.r_name
+HAVING SUM(l.l_extendedprice) = (
+    SELECT MAX(region_spending)
+    FROM (
+        SELECT SUM(l2.l_extendedprice) AS region_spending
+        FROM lineitem l2
+        JOIN supplier s2 ON l2.l_suppkey = s2.s_suppkey
+        JOIN nation sn2 ON s2.s_nationkey = sn2.n_nationkey
+        JOIN region sr2 ON sn2.n_regionkey = sr2.r_regionkey
+        JOIN orders o2 ON l2.l_orderkey = o2.o_orderkey
+        JOIN customer c2 ON o2.o_custkey = c2.c_custkey
+        JOIN nation cn2 ON c2.c_nationkey = cn2.n_nationkey
+        JOIN region cr2 ON cn2.n_regionkey = cr2.r_regionkey
+        WHERE sr2.r_regionkey = cr2.r_regionkey
+        GROUP BY cr2.r_regionkey
+    ) region_totals
+);
+
+SELECT COUNT(*) AS parts_supplied_by_exactly_one_supplier
+FROM (
+    SELECT ps.ps_partkey
+    FROM partsupp ps
+    JOIN supplier s ON ps.ps_suppkey = s.s_suppkey
+    JOIN nation n ON s.s_nationkey = n.n_nationkey
+    WHERE n.n_name = 'UNITED STATES'
+    GROUP BY ps.ps_partkey
+    HAVING COUNT(DISTINCT s.s_suppkey) = 1
+) partsupp_counts;
+
+SELECT 
+    n.n_name AS nation_name,
+    COUNT(*) AS customer_count
+FROM customer c
+JOIN nation n ON c.c_nationkey = n.n_nationkey
+GROUP BY n.n_nationkey, n.n_name
+HAVING COUNT(*) = (
+    SELECT MAX(customer_count)
+    FROM (
+        SELECT COUNT(*) AS customer_count
+        FROM customer c2
+        JOIN nation n2 ON c2.c_nationkey = n2.n_nationkey
+        GROUP BY n2.n_nationkey
+    ) nation_counts
+);
+
+SELECT 
+    n.n_name AS country,
+    SUM(CASE WHEN trade_data.ship_year = '1997' 
+             THEN trade_data.economic_value ELSE 0 END) AS year_1997,
+    SUM(CASE WHEN trade_data.ship_year = '1998' 
+             THEN trade_data.economic_value ELSE 0 END) AS year_1998
+FROM nation n
+LEFT JOIN (
+    SELECT 
+        sn.n_nationkey,
+        strftime('%Y', l.l_shipdate) AS ship_year,
+        1 AS economic_value
+    FROM lineitem l
+    JOIN supplier s ON l.l_suppkey = s.s_suppkey
+    JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+    JOIN orders o ON l.l_orderkey = o.o_orderkey
+    JOIN customer c ON o.o_custkey = c.c_custkey
+    JOIN nation cn ON c.c_nationkey = cn.n_nationkey
+    WHERE strftime('%Y', l.l_shipdate) IN ('1997', '1998')
+        AND sn.n_nationkey != cn.n_nationkey
+    
+    UNION ALL
+    
+    SELECT 
+        cn.n_nationkey,
+        strftime('%Y', l.l_shipdate) AS ship_year,
+        -1 AS economic_value
+    FROM lineitem l
+    JOIN supplier s ON l.l_suppkey = s.s_suppkey
+    JOIN nation sn ON s.s_nationkey = sn.n_nationkey
+    JOIN orders o ON l.l_orderkey = o.o_orderkey
+    JOIN customer c ON o.o_custkey = c.c_custkey
+    JOIN nation cn ON c.c_nationkey = cn.n_nationkey
+    WHERE strftime('%Y', l.l_shipdate) IN ('1997', '1998')
+        AND sn.n_nationkey != cn.n_nationkey
+) trade_data ON n.n_nationkey = trade_data.n_nationkey
+GROUP BY n.n_nationkey, n.n_name
+ORDER BY n.n_name;
