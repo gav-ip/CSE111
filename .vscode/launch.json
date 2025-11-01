@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/gabrigo/Documents/GitHub/CSE111/cse111_docker/lab_7",
+      "program": "/Users/gabrigo/Documents/GitHub/CSE111/cse111_docker/lab_7/build/Debug/outDebug"
+    }
+  ]
+}
