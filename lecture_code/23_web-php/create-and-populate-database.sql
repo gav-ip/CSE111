@@ -92,3 +92,4 @@ INSERT INTO Printer (model, color, type, price) VALUES
     (3022, 'true', 'laser', 199);
 
 
+
