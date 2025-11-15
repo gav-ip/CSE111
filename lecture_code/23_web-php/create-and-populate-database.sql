@@ -96,3 +96,5 @@ INSERT INTO Printer (model, color, type, price) VALUES
 
 
 
+
+
