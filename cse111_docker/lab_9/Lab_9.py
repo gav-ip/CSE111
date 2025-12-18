@@ -106,7 +106,7 @@ def create_View2(_conn):
                 o.o_clerk as oclerk,
                 o.o_shippriority as oshippriority,
                 o.o_comment as ocomment
-            FROM orders o;
+              FROM orders o;
         """
         _conn.executescript(sql)
         print("success")
